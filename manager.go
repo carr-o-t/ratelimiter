@@ -18,7 +18,7 @@ type Manager struct {
 	cleanupInterval time.Duration
 
 	stopCh   chan struct{}
-	doneCh   chan struct{}
+	wg       sync.WaitGroup
 	stopOnce sync.Once
 }
 
@@ -50,9 +50,9 @@ func NewManager(
 		bucketTTL:       bucketTTL,
 		cleanupInterval: cleanupInterval,
 		stopCh:          make(chan struct{}),
-		doneCh:          make(chan struct{}),
 	}
 
+	m.wg.Add(1)
 	go m.cleanupLoop()
 
 	return m, nil
@@ -78,7 +78,7 @@ func (m *Manager) Allow(key string) bool {
 }
 
 func (m *Manager) cleanupLoop() {
-	defer close(m.doneCh)
+	defer m.wg.Done()
 
 	ticker := time.NewTicker(m.cleanupInterval)
 	defer ticker.Stop()
@@ -93,11 +93,15 @@ func (m *Manager) cleanupLoop() {
 	}
 }
 
-func (m *Manager) Close() {
+func (m *Manager) Stop() {
 	m.stopOnce.Do(func() {
 		close(m.stopCh)
-		<-m.doneCh
+		m.wg.Wait()
 	})
+}
+
+func (m *Manager) Close() {
+	m.Stop()
 }
 
 func (m *Manager) Cleanup() {
