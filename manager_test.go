@@ -2,6 +2,8 @@ package ratelimiter
 
 import (
 	"fmt"
+	"log"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -9,10 +11,11 @@ import (
 )
 
 func TestManagerSameKeySharesBucket(t *testing.T) {
-	m, err := NewManager(2, 1, time.Hour)
+	m, err := NewManager(2, 1, time.Hour, time.Minute, time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error creating manager: %v", err)
 	}
+	defer m.Close()
 
 	if !m.Allow("user-1") {
 		t.Fatal("expected first request for same key to pass")
@@ -26,10 +29,11 @@ func TestManagerSameKeySharesBucket(t *testing.T) {
 }
 
 func TestManagerDifferentKeysIndependent(t *testing.T) {
-	m, err := NewManager(1, 1, time.Hour)
+	m, err := NewManager(1, 1, time.Hour, time.Minute, time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error creating manager: %v", err)
 	}
+	defer m.Close()
 
 	if !m.Allow("user-a") {
 		t.Fatal("expected first request for user-a to pass")
@@ -52,10 +56,11 @@ func TestManagerConcurrentRequestsAcrossMultipleKeys(t *testing.T) {
 		requestsPerKey = 20
 	)
 
-	m, err := NewManager(capacity, 1, time.Hour)
+	m, err := NewManager(capacity, 1, time.Hour, time.Minute, time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error creating manager: %v", err)
 	}
+	defer m.Close()
 
 	var wg sync.WaitGroup
 	allowedByKey := make([]int64, keys)
@@ -89,10 +94,11 @@ func TestManagerConcurrentRequestsSameKey(t *testing.T) {
 		total    = 500
 	)
 
-	m, err := NewManager(capacity, 1, time.Hour)
+	m, err := NewManager(capacity, 1, time.Hour, time.Minute, time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error creating manager: %v", err)
 	}
+	defer m.Close()
 
 	var wg sync.WaitGroup
 	var allowed int64
@@ -111,5 +117,52 @@ func TestManagerConcurrentRequestsSameKey(t *testing.T) {
 
 	if allowed != capacity {
 		t.Fatalf("expected %d requests to pass for same key, got %d", capacity, allowed)
+	}
+}
+
+func TestManagerCleanupRemovesInactiveBucket(t *testing.T) {
+	m, err := NewManager(2, 1, time.Hour, 30*time.Millisecond, 10*time.Millisecond)
+	if err != nil {
+		t.Fatalf("unexpected error creating manager: %v", err)
+	}
+	defer m.Close()
+
+	if !m.Allow("inactive-user") {
+		t.Fatal("expected initial request to create bucket")
+	}
+
+	time.Sleep(120 * time.Millisecond)
+
+	m.mu.Lock()
+	_, exists := m.buckets["inactive-user"]
+	m.mu.Unlock()
+
+	if exists {
+		t.Fatal("expected inactive bucket to be cleaned up")
+	}
+}
+
+func TestManagerCleanupGoroutineDoesNotLeak(t *testing.T) {
+	base := runtime.NumGoroutine()
+
+	log.Println("Goroutines before:", base)
+
+	const managers = 30
+	for range managers {
+		m, err := NewManager(2, 1, time.Hour, time.Minute, 5*time.Millisecond)
+		if err != nil {
+			t.Fatalf("unexpected error creating manager: %v", err)
+		}
+		m.Close()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	after := runtime.NumGoroutine()
+
+	log.Println("Goroutines after:", after)
+
+	// allow small background scheduling jitter
+	if after > base+5 {
+		t.Fatalf("possible goroutine leak: before=%d after=%d", base, after)
 	}
 }
