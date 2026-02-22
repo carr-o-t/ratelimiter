@@ -4,6 +4,7 @@ import (
 	"testing"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 func TestTokenBucket(t *testing.T) {
@@ -42,6 +43,23 @@ func TestTokenBucketConcurrent(t *testing.T) {
 
 	if allowed != 100 {
 		t.Fatalf("Expected 100 allowed, got %d", allowed)
+	}
+}
+
+func TestRefill(t *testing.T) {
+	tb := NewTokenBucket(2, 1) // bucket with capacity 2 tokens and refill rate 1 token per sec
+
+	tb.Allow()
+	tb.Allow()
+
+	if tb.Allow() {
+		t.Fatal("Expected bucket to be empty")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	if !tb.Allow() {
+		t.Fatal("Expected refill after 1 second")
 	}
 }
 
