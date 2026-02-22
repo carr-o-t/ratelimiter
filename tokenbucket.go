@@ -13,7 +13,7 @@ type TokenBucket struct {
 
 	interval   time.Duration
 	lastRefill time.Time // last refill time
-	lastSeen   time.Time
+	lastSeen   time.Time // last seen time
 
 	mu sync.Mutex
 }
@@ -53,6 +53,7 @@ func NewTokenBucket(capacity int64, refillRate int64, per ...time.Duration) (*To
 		interval:   interval,
 		refillRate: refillRate,
 		lastRefill: time.Now(),
+		lastSeen:   time.Now(),
 	}, nil
 }
 
@@ -82,25 +83,15 @@ func (tb *TokenBucket) Allow() bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
-	// beforeRefill := tb.tokens
+	tb.lastSeen = time.Now()
+
 	tb.refill()
-	// afterRefill := tb.tokens
 
 	allowed := false
 	if tb.tokens > 0 {
 		tb.tokens--
 		allowed = true
 	}
-
-	// log.Printf(
-	// 	"\n\ntoken_bucket allow=%t tokens_before_refill=%d tokens_after_refill=%d tokens_after_allow=%d capacity=%d refill_rate=%d\n\n",
-	// 	allowed,
-	// 	beforeRefill,
-	// 	afterRefill,
-	// 	tb.tokens,
-	// 	tb.capacity,
-	// 	tb.refillRate,
-	// )
 
 	return allowed
 }

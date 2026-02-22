@@ -70,7 +70,7 @@ func (m *Manager) Allow(key string) bool {
 		}
 		m.buckets[key] = tb
 	}
-	tb.lastSeen = time.Now()
+
 
 	m.mu.Unlock()
 
