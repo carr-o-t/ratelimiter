@@ -30,7 +30,7 @@ func (s *MemoryStore) Allow(key string, cfg BucketConfig) (Decision, error) {
 	}
 	s.mu.Unlock()
 
-	return Decision{Allowed: tb.Allow()}, nil
+	return tb.allowDecision(), nil
 }
 
 func (s *MemoryStore) DeleteInactiveBuckets(cutoff time.Time) error {

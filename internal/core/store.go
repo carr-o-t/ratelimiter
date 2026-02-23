@@ -9,7 +9,10 @@ type BucketConfig struct {
 }
 
 type Decision struct {
-	Allowed bool
+	Allowed    bool
+	Remaining  int64
+	Limit      int64
+	RetryAfter time.Duration
 }
 
 type Store interface {

@@ -70,15 +70,39 @@ func (tb *TokenBucket) refill() {
 }
 
 func (tb *TokenBucket) Allow() bool {
+	return tb.allowDecision().Allowed
+}
+
+func (tb *TokenBucket) allowDecision() Decision {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
-	tb.lastSeen = time.Now()
+	now := time.Now()
+	tb.lastSeen = now
 	tb.refill()
+
+	decision := Decision{
+		Limit:     tb.capacity,
+		Remaining: tb.tokens,
+	}
 
 	if tb.tokens > 0 {
 		tb.tokens--
-		return true
+		decision.Allowed = true
+		decision.Remaining = tb.tokens
+		return decision
 	}
-	return false
+
+	retryAfter := tb.lastRefill.Add(tb.singleTokenDuration()).Sub(now)
+	if retryAfter < 0 {
+		retryAfter = 0
+	}
+	decision.RetryAfter = retryAfter
+	return decision
+}
+
+func (tb *TokenBucket) singleTokenDuration() time.Duration {
+	intervalNs := int64(tb.interval)
+	waitNs := (intervalNs + tb.refillRate - 1) / tb.refillRate
+	return time.Duration(waitNs)
 }
