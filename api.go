@@ -11,6 +11,9 @@ type Store = core.Store
 type TokenBucket = core.TokenBucket
 type Manager = core.Manager
 type MemoryStore = core.MemoryStore
+type RedisStore = core.RedisStore
+type RedisStoreOptions = core.RedisStoreOptions
+type RedisEvalClient = core.RedisEvalClient
 
 func NewTokenBucket(capacity int64, refillRate int64, per ...time.Duration) (*TokenBucket, error) {
 	return core.NewTokenBucket(capacity, refillRate, per...)
@@ -18,6 +21,10 @@ func NewTokenBucket(capacity int64, refillRate int64, per ...time.Duration) (*To
 
 func NewMemoryStore() *MemoryStore {
 	return core.NewMemoryStore()
+}
+
+func NewRedisStore(client RedisEvalClient, opts RedisStoreOptions) (*RedisStore, error) {
+	return core.NewRedisStore(client, opts)
 }
 
 func NewManager(
