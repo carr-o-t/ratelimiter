@@ -16,23 +16,21 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) GetOrCreate(
-	key string,
-	create func() (*TokenBucket, error),
-) (*TokenBucket, error) {
+func (s *MemoryStore) Allow(key string, cfg BucketConfig) (Decision, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if tb, ok := s.buckets[key]; ok {
-		return tb, nil
+	tb, ok := s.buckets[key]
+	if !ok {
+		var err error
+		tb, err = NewTokenBucket(cfg.Capacity, cfg.RefillRate, cfg.Interval)
+		if err != nil {
+			s.mu.Unlock()
+			return Decision{}, err
+		}
+		s.buckets[key] = tb
 	}
+	s.mu.Unlock()
 
-	tb, err := create()
-	if err != nil {
-		return nil, err
-	}
-	s.buckets[key] = tb
-	return tb, nil
+	return Decision{Allowed: tb.Allow()}, nil
 }
 
 func (s *MemoryStore) DeleteInactiveBuckets(cutoff time.Time) error {
@@ -40,7 +38,10 @@ func (s *MemoryStore) DeleteInactiveBuckets(cutoff time.Time) error {
 	defer s.mu.Unlock()
 
 	for key, bucket := range s.buckets {
-		if bucket.lastSeen.Before(cutoff) {
+		bucket.mu.Lock()
+		lastSeen := bucket.lastSeen
+		bucket.mu.Unlock()
+		if lastSeen.Before(cutoff) {
 			delete(s.buckets, key)
 		}
 	}

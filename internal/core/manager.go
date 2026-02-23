@@ -75,13 +75,19 @@ func NewManagerWithStore(
 }
 
 func (m *Manager) Allow(key string) bool {
-	tb, err := m.store.GetOrCreate(key, func() (*TokenBucket, error) {
-		return NewTokenBucket(m.capacity, m.refillRate, m.interval)
-	})
+	decision, err := m.AllowDecision(key)
 	if err != nil {
 		return false
 	}
-	return tb.Allow()
+	return decision.Allowed
+}
+
+func (m *Manager) AllowDecision(key string) (Decision, error) {
+	return m.store.Allow(key, BucketConfig{
+		Capacity:   m.capacity,
+		RefillRate: m.refillRate,
+		Interval:   m.interval,
+	})
 }
 
 func (m *Manager) cleanupLoop() {

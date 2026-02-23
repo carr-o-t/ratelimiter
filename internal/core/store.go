@@ -2,8 +2,18 @@ package core
 
 import "time"
 
+type BucketConfig struct {
+	Capacity   int64
+	RefillRate int64
+	Interval   time.Duration
+}
+
+type Decision struct {
+	Allowed bool
+}
+
 type Store interface {
-	GetOrCreate(key string, create func() (*TokenBucket, error)) (*TokenBucket, error)
+	Allow(key string, cfg BucketConfig) (Decision, error)
 	DeleteInactiveBuckets(cutoff time.Time) error
 	Close() error
 }
