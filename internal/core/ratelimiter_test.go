@@ -1,4 +1,4 @@
-package ratelimiter
+package core
 
 import (
 	"sync"
@@ -93,23 +93,23 @@ func TestRefillGreaterThanCapacity(t *testing.T) {
 }
 
 func TestInvalidConfig(t *testing.T) {
-    _, err := NewTokenBucket(0, 10, time.Second)
-    if err == nil {
-        t.Fatal("expected error for zero capacity")
-    }
+	_, err := NewTokenBucket(0, 10, time.Second)
+	if err == nil {
+		t.Fatal("expected error for zero capacity")
+	}
 
-    _, err = NewTokenBucket(10, 0, time.Second)
-    if err == nil {
-        t.Fatal("expected error for zero tokens")
-    }
+	_, err = NewTokenBucket(10, 0, time.Second)
+	if err == nil {
+		t.Fatal("expected error for zero tokens")
+	}
 
-    _, err = NewTokenBucket(10, 10, 0)
-    if err == nil {
-        t.Fatal("expected error for zero interval")
-    }
+	_, err = NewTokenBucket(10, 10, 0)
+	if err == nil {
+		t.Fatal("expected error for zero interval")
+	}
 
-    _, err = NewTokenBucket(5, 10, time.Second)
-    if err == nil {
-        t.Fatal("expected error when tokens > capacity")
-    }
+	_, err = NewTokenBucket(5, 10, time.Second)
+	if err == nil {
+		t.Fatal("expected error when tokens > capacity")
+	}
 }

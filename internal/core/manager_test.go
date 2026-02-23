@@ -1,4 +1,4 @@
-package ratelimiter
+package core
 
 import (
 	"fmt"
@@ -121,7 +121,7 @@ func TestManagerConcurrentRequestsSameKey(t *testing.T) {
 }
 
 func TestManagerCleanupRemovesInactiveBucket(t *testing.T) {
-	m, err := NewManager(2, 1, time.Hour, 30*time.Millisecond, 10*time.Millisecond)
+	m, err := NewManager(1, 1, time.Hour, 30*time.Millisecond, 10*time.Millisecond)
 	if err != nil {
 		t.Fatalf("unexpected error creating manager: %v", err)
 	}
@@ -130,15 +130,15 @@ func TestManagerCleanupRemovesInactiveBucket(t *testing.T) {
 	if !m.Allow("inactive-user") {
 		t.Fatal("expected initial request to create bucket")
 	}
+	if m.Allow("inactive-user") {
+		t.Fatal("expected second request to be blocked before cleanup")
+	}
 
 	time.Sleep(120 * time.Millisecond)
 
-	m.mu.Lock()
-	_, exists := m.buckets["inactive-user"]
-	m.mu.Unlock()
-
-	if exists {
-		t.Fatal("expected inactive bucket to be cleaned up")
+	// If cleanup removed the stale bucket, this creates a fresh bucket and allows again.
+	if !m.Allow("inactive-user") {
+		t.Fatal("expected inactive bucket to be cleaned up and recreated")
 	}
 }
 
@@ -164,5 +164,12 @@ func TestManagerCleanupGoroutineDoesNotLeak(t *testing.T) {
 	// allow small background scheduling jitter
 	if after > base+5 {
 		t.Fatalf("possible goroutine leak: before=%d after=%d", base, after)
+	}
+}
+
+func TestNewManagerWithStoreNil(t *testing.T) {
+	_, err := NewManagerWithStore(nil, 2, 1, time.Second, time.Minute, time.Second)
+	if err == nil {
+		t.Fatal("expected error for nil store")
 	}
 }

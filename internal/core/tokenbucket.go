@@ -1,4 +1,4 @@
-package ratelimiter
+package core
 
 import (
 	"errors"
@@ -7,13 +7,13 @@ import (
 )
 
 type TokenBucket struct {
-	capacity   int64 // max tokens
-	tokens     int64 // current tokens
-	refillRate int64 // tokens per second
+	capacity   int64
+	tokens     int64
+	refillRate int64
 
 	interval   time.Duration
-	lastRefill time.Time // last refill time
-	lastSeen   time.Time // last seen time
+	lastRefill time.Time
+	lastSeen   time.Time
 
 	mu sync.Mutex
 }
@@ -22,19 +22,15 @@ func validateTokenBucketConfig(capacity int64, tokens int64, per time.Duration) 
 	if capacity <= 0 {
 		return errors.New("capacity must be greater than 0")
 	}
-
 	if tokens <= 0 {
 		return errors.New("tokens per interval must be greater than 0")
 	}
-
 	if per <= 0 {
 		return errors.New("interval must be greater than 0")
 	}
-
 	if tokens > capacity {
 		return errors.New("tokens per interval cannot exceed capacity")
 	}
-
 	return nil
 }
 
@@ -47,51 +43,42 @@ func NewTokenBucket(capacity int64, refillRate int64, per ...time.Duration) (*To
 		return nil, err
 	}
 
+	now := time.Now()
 	return &TokenBucket{
 		capacity:   capacity,
-		tokens:     capacity, // initial tokens, full capacity
+		tokens:     capacity,
 		interval:   interval,
 		refillRate: refillRate,
-		lastRefill: time.Now(),
-		lastSeen:   time.Now(),
+		lastRefill: now,
+		lastSeen:   now,
 	}, nil
 }
 
-// private function
 func (tb *TokenBucket) refill() {
 	now := time.Now()
 	elapsed := now.Sub(tb.lastRefill)
 
-	// calculate to prevent early overflow
-	// and handle fractional intervals correctly
 	newTokens := int64(float64(elapsed) / float64(tb.interval) * float64(tb.refillRate))
-
 	if newTokens > 0 {
 		tb.tokens += newTokens
 		if tb.tokens > tb.capacity {
 			tb.tokens = tb.capacity
 		}
-
-		// move lastRefill forward only by the time used for the generated tokens
 		timeUsed := time.Duration(newTokens * int64(tb.interval) / tb.refillRate)
 		tb.lastRefill = tb.lastRefill.Add(timeUsed)
 	}
 }
 
-// public
 func (tb *TokenBucket) Allow() bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
 	tb.lastSeen = time.Now()
-
 	tb.refill()
 
-	allowed := false
 	if tb.tokens > 0 {
 		tb.tokens--
-		allowed = true
+		return true
 	}
-
-	return allowed
+	return false
 }

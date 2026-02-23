@@ -1,6 +1,4 @@
-// interface
-
-package ratelimiter
+package core
 
 type Limiter interface {
 	Allow() bool
